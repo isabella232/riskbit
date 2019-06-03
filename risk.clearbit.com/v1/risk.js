@@ -126,10 +126,14 @@ this.clearbitRequire.define({
                     g = this.fontTypes;
                     e = [];
                     b = 0;
+                    return d.detectBatch(g);
+
+                    /*
                     for (a = g.length; b < a; b++)
                         c = g[b],
                             d.detect(c) && e.push(c);
                     return e
+                    */
                 }
                     ;
                 a.prototype.getNavigatorProperties = function () {
@@ -219,6 +223,39 @@ this.clearbitRequire.define({
                     }
                 }
                     ;
+
+
+                a.prototype.getSystemColorsBatch = function () {
+                    var parent = document.createElement("div");
+                    var colors = {};
+                    var variants = "ActiveBorder ActiveCaption AppWorkspace Background ButtonFace ButtonHighlight ButtonShadow ButtonText CaptionText GrayText Highlight HighlightText InactiveBorder InactiveCaption InactiveCaptionText InfoBackground InfoText Menu MenuText Scrollbar ThreeDDarkShadow ThreeDFace ThreeDHighlight ThreeDLightShadow ThreeDShadow Window WindowFrame WindowText".split(" ");
+                    if (!window.getComputedStyle) {
+                        return colors;
+                    }
+
+                    // Batch inserts
+                    for (var variant of variants) {
+                        var d = document.createElement("div");
+                        d.style.color = variant;
+                        parent.appendChild(d);
+                    }
+
+                    // Attach parent to body
+                    document.body.appendChild(parent);
+
+                    // Batch measures
+                    for (var index in variants) {
+                        var node = parent.childNodes.item(index);
+                        var variant = variants[index];
+                        colors[variant] = window.getComputedStyle(node).getPropertyValue("color");
+                    }
+
+                    // Remove parent
+                    document.body.removeChild(parent);
+
+                    return colors;
+                };
+
                 a.prototype.getBattery = function (d) {
                     return navigator.getBattery ? navigator.getBattery().then(function (c) {
                         return d({
@@ -276,7 +313,8 @@ this.clearbitRequire.define({
                     var m;
                     a: {
                         try {
-                            m = this.getSystemColors();
+                            //m = this.getSystemColors();
+                            m = this.getSystemColorsBatch();
                             break a
                         } catch (a) { }
                         m = void 0
@@ -305,6 +343,8 @@ this.clearbitRequire.define({
 this.clearbitRequire.define({
     "risk/fontdetect": function (f, l, m) {
         m.exports = function () {
+            // NOTES: could optimize these initial measures by combining their read/writes
+            // with the other measurements in .detectBatch()
             var h = ["monospace", "sans-serif", "serif"]
                 , k = document.getElementsByTagName("body")[0]
                 , a = document.createElement("span");
@@ -327,6 +367,43 @@ this.clearbitRequire.define({
                     g = g || f
                 }
                 return g
+            }
+            this.detectBatch = function (fonts) {
+                // Create parent
+                var parent = document.createElement("div");
+
+                // Add all spans to parent
+                for (var font of fonts) {
+                    for (var fallbackFont of h) {
+                        var s = document.createElement("span");
+                        s.style.fontSize = "72px";
+                        s.innerText = "mmmmmmmmmmlli";
+                        s.style.fontFamily = font + "," + fallbackFont;
+                        parent.appendChild(s);
+                    }
+                }
+
+                // Attach parent to body
+                k.appendChild(parent);
+
+                // Measure (and filter)
+                var availableFonts = fonts.filter((font, index) => {
+                    var equalDims = false;
+                    for (var fallbackIdx in h) {
+                        var idx = index * 3 + Number(fallbackIdx);
+                        var node = parent.childNodes.item(idx);
+                        var equalDims = (node.offsetWidth === d[h[fallbackIdx]] && node.offsetHeight === c[h[fallbackIdx]]);
+                        if (equalDims) {
+                            return false;
+                        }
+                    }
+                    return true;
+                });
+
+                // Remove parent (and child nodes)
+                k.removeChild(parent);
+
+                return availableFonts;
             }
         }
     }
